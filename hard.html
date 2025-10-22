@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+        <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-15XSHH4V0Q"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-15XSHH4V0Q');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ne.On(e) Pong Arcade</title>
+    <style>
+        /* Variáveis de Cores Neon */
+        :root {
+            --neon-color: #39FF14; /* Verde Elétrico/Neon (Principal - Linha, Placar, Fundo) */
+            --bg-color: #000000;
+            --arcade-font: 'Monospace', 'Courier New', monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--neon-color);
+            font-family: var(--arcade-font);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden; /* Evita barras de rolagem */
+            text-align: center;
+        }
+
+        h1 {
+            text-shadow: 0 0 10px var(--neon-color), 0 0 20px var(--neon-color);
+            margin-bottom: 10px;
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+        }
+
+        #game-container {
+            border: 4px solid var(--neon-color);
+            box-shadow: 0 0 15px var(--neon-color), 0 0 30px rgba(57, 255, 20, 0.5);
+            margin: 20px 10px;
+            display: inline-block;
+            max-width: 90vw;
+            touch-action: none; /* Previne o arrastar da página em dispositivos móveis */
+            /* Efeito de impacto (shake) */
+            transition: transform 0.05s ease-out; 
+        }
+        
+        /* Classe para ativar o efeito de tremer (shake) */
+        #game-container.shake {
+            animation: shake 0.1s linear;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-4px, 0); }
+            75% { transform: translate(4px, 0); }
+        }
+
+
+        #pongCanvas {
+            display: block;
+            background-color: rgba(0, 0, 0, 0.8);
+            /* Definido no JS para responsividade */
+        }
+
+        .info-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 0;
+            font-size: clamp(0.8rem, 2vw, 1rem);
+            text-shadow: 0 0 5px var(--neon-color);
+        }
+        
+        /* NOVO ESTILO PARA O RODAPÉ */
+        .footer-note {
+            margin-top: 20px;
+            font-size: clamp(0.7rem, 2vw, 0.9rem);
+            opacity: 0.7;
+            text-shadow: 0 0 5px rgba(57, 255, 20, 0.5);
+        }
+        
+        /* Estilo para garantir que o link no rodapé fique neon */
+        .footer-note a {
+            color: inherit; /* Garante que o texto fique com a cor neon do pai */
+            text-decoration: none; /* Remove a sublinhado padrão */
+            border-bottom: 1px dashed var(--neon-color); /* Adiciona um sublinhado tracejado neon */
+            transition: opacity 0.2s;
+        }
+
+        .footer-note a:hover {
+            opacity: 1;
+        }
+
+
+        /* Estilo para Mensagens de Jogo (Game Over/Instruções) */
+        #messageBox {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.95);
+            padding: 20px 40px;
+            border: 3px solid var(--neon-color);
+            box-shadow: 0 0 20px var(--neon-color);
+            z-index: 100;
+            display: none; /* Inicialmente oculto */
+            max-width: 80vw;
+            border-radius: 8px;
+        }
+
+        #messageText {
+            font-size: clamp(1.2rem, 4vw, 2rem);
+            margin-bottom: 15px;
+            text-shadow: 0 0 8px var(--neon-color);
+        }
+
+        #startButton {
+            background-color: var(--neon-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 10px 20px;
+            font-family: var(--arcade-font);
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        #startButton:hover {
+            box-shadow: 0 0 10px var(--neon-color), 0 0 20px var(--neon-color);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="messageBox">
+        <div id="messageText"></div>
+        <button id="startButton">INICIAR JOGO</button>
+    </div>
+
+    <h1>NE.ON(E) PONG ARCADE</h1>
+    <p class="info-box">Controle: Clique/Toque para ativar o poder ou mover. Pressione ESC para Pausar. <span style="color:red; font-weight:bold;">BUG ALERTA:</span> Se a bola travar, o Campo de Força Secreto será ativado!</p> 
+    
+    <div id="game-container">
+        <canvas id="pongCanvas"></canvas>
+    </div>
+    
+    <!-- NOTA DE RODAPÉ ADICIONADA -->
+    <footer class="footer-note">
+        Desenvolvido por <a href="https://padula.one" target="_blank">Padula.One</a> usando Gemini
+    </footer>
+
+    <script>
+        // Configurações Globais
+        const CANVAS_WIDTH = 600; // Largura base
+        const CANVAS_HEIGHT = 400; // Altura base
+        const NEON_COLOR = '#39FF14';      // Cor Neon Principal (Verde - Linha, Placar, Fundo)
+        const P1_INITIAL_COLOR = '#00FFFF';  // Ciano Neon (Barra P1)
+        const P2_INITIAL_COLOR = '#FF1493';  // Rosa Neon (Barra CPU)
+        const MAX_SCORE = 10;
+        const PADDLE_WIDTH_RATIO = 0.015;
+        const PADDLE_HEIGHT_RATIO = 0.15;
+        const CPU_BASE_SPEED = 4.0; // Velocidade base do CPU (multiplicada pelo fator de escala e pelo multiplicador da bola)
+
+        // Definições dos Power-ups (Todos com chance igual de 1/7)
+        const powerUpDefinitions = {
+            'SWAP': { name: 'Troca', effect: 'Troca a barra com CPU.', type: 'Instant' },
+            'INVIS': { name: 'Invisível', effect: 'Bola opaca, CPU tem 15% de erro.', type: 'Ball' },
+            'CURVE': { name: 'Curva', effect: 'Bola Curva na devolução.', type: 'Ball' },
+            'SHRINK_OPP': { name: 'Encolher CPU', effect: 'Encolhe a barra do CPU pela metade.', type: 'Paddle' },
+            'BOOST': { name: 'Velocidade x2', effect: 'A bola dobra a velocidade.', type: 'Ball' },
+            'GROW': { name: 'Inchaço x2', effect: 'Sua barra aumenta 2x (5s).', type: 'Paddle' },
+            'DUPLICATE': { name: 'Duplicar', effect: 'Cria uma segunda bola.', type: 'Instant' }, // Novo Poder
+        };
+        const NUM_BLOCKS = 3;
+        const BLOCK_WIDTH_RATIO = 0.03;
+        const BLOCK_HEIGHT_RATIO = 0.05;
+        const POWER_UP_DURATION_MS = 5000;
+        
+        // NOVO: Parâmetros para o "Impulso Fantasma" (Correção de Bug Heurística)
+        const HORIZONTAL_STEP_THRESHOLD = 3; // Número de frames seguidos para acionar a correção
+        const MIN_DY_TO_CHECK = 0.2; // Velocidade vertical mínima para contar como "preso"
+        const FORCED_IMPULSE_FORCE = 4.0; // Força de dy injetada no impulso fantasma
+
+        // Elementos DOM
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const startButton = document.getElementById('startButton');
+        const gameContainer = document.getElementById('game-container');
+
+        // Variáveis de Jogo
+        let gameRunning = false;
+        let isPaused = false; 
+        let isPointerLocked = false; 
+        let scaleFactor = 1;
+
+        // Objetos do Jogo
+        let player, computer;
+        let balls = []; // Agora um array para múltiplas bolas
+        let powerUpBlocks = [];
+        let originalPaddleHeight; 
+        let isInvisibleBall = { active: false, hitterSide: null }; 
+        let isPlayerCurvingBall = false;
+        
+        // --- FUNÇÕES DE CONTROLE DE MOUSE LOCK ---
+        
+        function requestPointerLock() {
+            canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+            
+            const lockPromise = canvas.requestPointerLock();
+            
+            if (lockPromise && typeof lockPromise.catch === 'function') {
+                 // Silencia o SecurityError se o usuário cancelar o lock rapidamente
+                 lockPromise.catch(() => {}); 
+            }
+        }
+
+        function exitPointerLock() {
+            if (isPointerLocked) {
+                document.exitPointerLock = document.exitPointerLock || document.mozExitPointerLock;
+                document.exitPointerLock();
+            }
+        }
+        
+        function lockChangeAlert() {
+            isPointerLocked = document.pointerLockElement === canvas || document.mozPointerLockElement === canvas;
+
+            // Se o mouse foi liberado (isPointerLocked é false) pelo navegador (usuário apertou ESC) 
+            // E o jogo está rodando (não está pausado intencionalmente), forçamos a pausa.
+            if (!isPointerLocked && gameRunning && !isPaused) {
+                isPaused = true;
+                gameRunning = false;
+                showPauseMessage();
+            }
+        }
+        
+        // Listener para o estado de mouse lock
+        document.addEventListener('pointerlockchange', lockChangeAlert, false);
+        document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
+        
+        // --- FIM FUNÇÕES DE CONTROLE DE MOUSE LOCK ---
+
+        function triggerShake() {
+            gameContainer.classList.add('shake');
+            setTimeout(() => {
+                gameContainer.classList.remove('shake');
+            }, 100); 
+        }
+
+        function resizeCanvas() {
+            const newWidth = Math.min(CANVAS_WIDTH, window.innerWidth * 0.9);
+            const newHeight = newWidth * (CANVAS_HEIGHT / CANVAS_WIDTH);
+
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            scaleFactor = newWidth / CANVAS_WIDTH;
+
+            const paddleW = CANVAS_WIDTH * PADDLE_WIDTH_RATIO * scaleFactor;
+            const paddleH = CANVAS_HEIGHT * PADDLE_HEIGHT_RATIO * scaleFactor;
+            const ballR = 5 * scaleFactor;
+            const blockW = CANVAS_WIDTH * BLOCK_WIDTH_RATIO * scaleFactor;
+            const blockH = CANVAS_HEIGHT * BLOCK_HEIGHT_RATIO * scaleFactor;
+
+            if (!player) {
+                originalPaddleHeight = paddleH;
+                // Adiciona a cor inicial (Ciano Neon)
+                player = { x: 10 * scaleFactor, y: (canvas.height / 2) - (paddleH / 2), width: paddleW, height: paddleH, score: 0, currentPowerUp: null, abilityActive: false, color: P1_INITIAL_COLOR };
+            } else {
+                player.width = paddleW;
+                player.x = 10 * scaleFactor;
+                originalPaddleHeight = paddleH;
+                player.color = player.color || P1_INITIAL_COLOR; 
+            }
+
+            if (!computer) {
+                // Adiciona a cor inicial (Rosa Neon)
+                computer = { x: canvas.width - paddleW - (10 * scaleFactor), y: (canvas.height / 2) - (paddleH / 2), width: paddleW, height: paddleH, score: 0, speed: CPU_BASE_SPEED * scaleFactor, currentPowerUp: null, color: P2_INITIAL_COLOR };
+            } else {
+                computer.width = paddleW;
+                computer.x = canvas.width - paddleW - (10 * scaleFactor);
+                computer.speed = CPU_BASE_SPEED * scaleFactor;
+                computer.color = computer.color || P2_INITIAL_COLOR;
+            }
+
+            // Garante que o raio de todas as bolas existentes seja atualizado
+            if (balls.length > 0) {
+                balls.forEach(b => b.radius = ballR);
+            }
+
+            if (powerUpBlocks.length === 0) {
+                for (let i = 0; i < NUM_BLOCKS; i++) {
+                    powerUpBlocks.push({ x: 0, y: 0, width: blockW, height: blockH, id: i, powerUp: getRandomPowerUp() });
+                }
+                powerUpBlocks.forEach(block => placeBlockRandomly(block));
+            } else {
+                powerUpBlocks.forEach(block => {
+                    block.width = blockW;
+                    block.height = blockH;
+                });
+            }
+        }
+        
+        function getRandomPowerUp() {
+            const powerUpKeys = Object.keys(powerUpDefinitions);
+            const randomIndex = Math.floor(Math.random() * powerUpKeys.length);
+            return powerUpKeys[randomIndex]; // Agora seleciona 1 de 7 com chances iguais
+        }
+
+        function placeBlockRandomly(block) {
+            const centerAreaWidth = canvas.width / 2;
+            const centerAreaStartX = canvas.width / 4;
+            
+            block.x = centerAreaStartX + Math.random() * (centerAreaWidth - block.width);
+            block.y = block.height + Math.random() * (canvas.height - 2 * block.height);
+        }
+
+        function checkBlockCollision(ball, block) {
+            return ball.x + ball.radius > block.x &&
+                   ball.x - ball.radius < block.x + block.width &&
+                   ball.y + ball.radius > block.y &&
+                   ball.y - ball.radius < block.y + block.height;
+        }
+
+        function draw() {
+            // 1. Fundo
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Linha Divisória e Efeitos Neon para Pás e Blocos
+            ctx.beginPath();
+            ctx.setLineDash([10 * scaleFactor, 10 * scaleFactor]);
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.strokeStyle = NEON_COLOR;
+            ctx.lineWidth = 2 * scaleFactor;
+            ctx.shadowColor = NEON_COLOR;
+            ctx.shadowBlur = 5 * scaleFactor;
+            ctx.stroke();
+            ctx.closePath();
+            ctx.setLineDash([]); 
+
+            // 3. Pás e Blocos
+            [player, computer].forEach(p => {
+                ctx.fillStyle = p.color; // Usa a cor específica da pá (Ciano ou Rosa)
+                ctx.shadowColor = p.color; // Usa a cor da pá para a sombra
+                ctx.shadowBlur = 10 * scaleFactor;
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+            });
+            
+            powerUpBlocks.forEach(block => {
+                ctx.fillStyle = NEON_COLOR; // Blocos usam a cor principal (Verde Neon)
+                ctx.shadowColor = NEON_COLOR;
+                ctx.shadowBlur = 10 * scaleFactor;
+                ctx.fillRect(block.x, block.y, block.width, block.height);
+
+                const powerDef = powerUpDefinitions[block.powerUp];
+                if (powerDef) {
+                    ctx.fillStyle = 'black';
+                    ctx.textAlign = 'center';
+                    ctx.font = `${10 * scaleFactor}px ${canvas.style.fontFamily}`;
+                    ctx.fillText(powerDef.name[0], block.x + block.width / 2, block.y + block.height * 0.7);
+                }
+            });
+
+            // Reseta a sombra antes de desenhar as bolas (e ajusta a opacidade global)
+            ctx.shadowBlur = 0; 
+            
+            // 4. Desenha as bolas
+            balls.forEach(ball => {
+                // Lógica de opacidade da Bola Invisível
+                let ballAlpha = 1;
+                if (isInvisibleBall.active) {
+                    const totalWidth = canvas.width;
+                    const fadeStartThreshold = totalWidth * 0.25;
+                    const fadeEndThreshold = totalWidth * 0.75;
+                    const maxInvisibility = 0; // Opacidade 0 para invisibilidade total
+    
+                    let distanceD = 0;
+                    // Calcula a distância da bola para o lado do jogador que a acertou por último
+                    if (isInvisibleBall.hitterSide === 'player') { 
+                        distanceD = ball.x; // Distância do lado esquerdo (0 até width)
+                    } 
+                    else if (isInvisibleBall.hitterSide === 'computer') { 
+                        distanceD = totalWidth - ball.x; // Distância do lado direito (width até 0)
+                    }
+    
+                    if (distanceD < fadeStartThreshold) {
+                        // 0% - 25%: Opacidade cai de 1 para 0
+                        const range = fadeStartThreshold;
+                        const normalizedPosition = distanceD / range; // 0 até 1
+                        ballAlpha = 1 - normalizedPosition * (1 - maxInvisibility); 
+                    } else if (distanceD >= fadeStartThreshold && distanceD <= fadeEndThreshold) {
+                        // 25% - 75%: Opacidade é 0 (totalmente invisível)
+                        ballAlpha = maxInvisibility;
+                    } else {
+                        // 75% - 100%: Opacidade sobe de 0 para 1
+                        const range = totalWidth - fadeEndThreshold;
+                        const normalizedPosition = (distanceD - fadeEndThreshold) / range; // 0 até 1
+                        ballAlpha = maxInvisibility + normalizedPosition * (1 - maxInvisibility); 
+                    }
+                    ballAlpha = Math.max(0, Math.min(1, ballAlpha));
+                }
+                ctx.globalAlpha = ballAlpha; 
+    
+                // Desenha
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = NEON_COLOR; // Bola usa a cor principal (Verde Neon)
+                ctx.shadowColor = NEON_COLOR;
+                ctx.shadowBlur = ballAlpha > 0 ? 15 * scaleFactor : 0; 
+                ctx.fill();
+                ctx.closePath();
+            });
+            ctx.globalAlpha = 1; // Reseta opacidade global após desenhar as bolas
+
+            // Reseta a sombra após desenhar os elementos de néon
+            ctx.shadowBlur = 0;
+
+            // 5. Placar e Status
+            ctx.fillStyle = NEON_COLOR; // Placar usa a cor principal (Verde Neon)
+            ctx.font = `${30 * scaleFactor}px ${canvas.style.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(player.score, canvas.width / 4, 30 * scaleFactor);
+            ctx.fillText(computer.score, canvas.width * 3 / 4, 30 * scaleFactor);
+
+            ctx.font = `${10 * scaleFactor}px ${canvas.style.fontFamily}`;
+            
+            ctx.textAlign = 'left';
+            if (player.currentPowerUp) {
+                const powerName = powerUpDefinitions[player.currentPowerUp].name;
+                const statusText = `Poder (P1): ${powerName} ${player.abilityActive && powerUpDefinitions[player.currentPowerUp].type !== 'Instant' ? '(ATIVO)' : '(PRONTO)'}`;
+                ctx.fillText(statusText, 10 * scaleFactor, canvas.height - 10 * scaleFactor);
+            }
+
+            ctx.textAlign = 'right';
+            if (computer.currentPowerUp) {
+                const powerName = powerUpDefinitions[computer.currentPowerUp].name;
+                const statusText = `Poder (CPU): ${powerName} (PRONTO)`;
+                ctx.fillText(statusText, canvas.width - 10 * scaleFactor, canvas.height - 10 * scaleFactor);
+            }
+        }
+
+        function applyPowerUp(user, opponent, powerUpId, currentBall) {
+            const powerDef = powerUpDefinitions[powerUpId];
+            if (!powerDef) return;
+
+            player.height = originalPaddleHeight;
+            computer.height = originalPaddleHeight;
+            
+            switch (powerUpId) {
+                case 'SWAP': 
+                    [user.y, opponent.y] = [opponent.y, user.y]; 
+                    // Troca SOMENTE as cores das pás (Ciano e Rosa)
+                    [user.color, opponent.color] = [opponent.color, user.color]; 
+                    break;
+                case 'INVIS':
+                    isInvisibleBall.active = true;
+                    isInvisibleBall.hitterSide = (user === player) ? 'player' : 'computer'; 
+                    break;
+                case 'CURVE': 
+                    isPlayerCurvingBall = true; 
+                    break;
+                case 'SHRINK_OPP':
+                    opponent.height = originalPaddleHeight * 0.5;
+                    setTimeout(() => { opponent.height = originalPaddleHeight; }, POWER_UP_DURATION_MS);
+                    break;
+                case 'BOOST':
+                    // Dobra a velocidade, limitando ao máximo. Isso se acumula com a velocidade atual.
+                    currentBall.speed = Math.min(currentBall.speed * 2, 12 * scaleFactor); 
+                    break;
+                case 'GROW':
+                    user.height = originalPaddleHeight * 2;
+                    setTimeout(() => { user.height = originalPaddleHeight; }, POWER_UP_DURATION_MS);
+                    break;
+                case 'DUPLICATE':
+                    if (balls.length < 5) { // Limita o número máximo de bolas
+                        const newBall = {
+                            ...currentBall, // Copia todas as propriedades, incluindo 'consecutiveHorizontalSteps'
+                            x: currentBall.x,
+                            y: currentBall.y,
+                            speed: currentBall.speed * 0.9, 
+                            dx: -currentBall.dx, // Inverte a direção horizontal
+                            dy: -currentBall.dy, // Inverte a direção vertical para "espalhar"
+                        };
+                        balls.push(newBall);
+                    }
+                    break;
+            }
+            
+            // Atualiza o vetor de movimento da bola com a nova velocidade (se BOOST foi ativado)
+            const angle = Math.atan2(currentBall.dy, currentBall.dx);
+            currentBall.dx = currentBall.speed * Math.cos(angle);
+            currentBall.dy = currentBall.speed * Math.sin(angle);
+        }
+
+        function updateComputer() {
+            // O CPU tenta mirar na bola mais próxima
+            let targetBall = null;
+            let minDistance = Infinity;
+            let maxBallSpeed = 0; // Novo: Rastreia a velocidade máxima da(s) bola(s)
+
+            balls.forEach(ball => {
+                // Encontra a velocidade máxima de qualquer bola em jogo
+                maxBallSpeed = Math.max(maxBallSpeed, ball.speed);
+
+                const distance = Math.abs(ball.x - computer.x);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    targetBall = ball;
+                }
+            });
+
+            if (!targetBall) return;
+            
+            // A velocidade base da bola é 4 * scaleFactor (definida em resetBall)
+            const initialBallSpeed = 4 * scaleFactor;
+            
+            // Calcula o multiplicador de velocidade baseado na bola mais rápida
+            const speedMultiplier = maxBallSpeed / initialBallSpeed;
+
+            // A velocidade da CPU é a base multiplicada pelo fator de escala e pelo multiplicador da bola
+            // Isso faz com que a velocidade da CPU seja sempre proporcional à velocidade da bola.
+            let currentSpeed = CPU_BASE_SPEED * scaleFactor * speedMultiplier; 
+            
+            // Se o power-up de invisibilidade estiver ativo, o CPU erra 15% das vezes (reduzindo a velocidade de reação)
+            if (isInvisibleBall.active && Math.random() < 0.15) {
+                currentSpeed *= 0.5;
+            }
+
+            const centerPaddle = computer.y + computer.height / 2;
+
+            if (targetBall.dx > 0) {
+                if (centerPaddle < targetBall.y - (15 * scaleFactor)) { computer.y += currentSpeed; } 
+                else if (centerPaddle > targetBall.y + (15 * scaleFactor)) { computer.y -= currentSpeed; }
+            }
+
+            if (computer.y < 0) computer.y = 0;
+            if (computer.y + computer.height > canvas.height) computer.y = canvas.height - computer.height;
+        }
+
+        function updateBall() {
+            // Itera sobre as bolas de trás para frente para permitir a remoção segura
+            for (let i = balls.length - 1; i >= 0; i--) {
+                const ball = balls[i];
+
+                // NOVO: Lógica do Impulso Fantasma (Heurística de Correção de Bug/Feature)
+                // Se a bola está se movendo com dy muito pequeno (quase horizontal)
+                if (Math.abs(ball.dy) < MIN_DY_TO_CHECK * scaleFactor) {
+                    ball.consecutiveHorizontalSteps++;
+                } else {
+                    ball.consecutiveHorizontalSteps = 0;
+                }
+
+                // Se atingiu o limite de frames horizontal
+                if (ball.consecutiveHorizontalSteps >= HORIZONTAL_STEP_THRESHOLD) {
+                    console.warn("Impulso Fantasma Ativado: Quebrando loop horizontal!");
+                    triggerShake();
+                    
+                    // Injeta uma força vertical significativa (dy)
+                    const direction = Math.random() > 0.5 ? 1 : -1;
+                    const newDy = direction * FORCED_IMPULSE_FORCE * scaleFactor;
+                    
+                    // Recalcula dx para manter a velocidade total (speed)
+                    const newDx = (ball.dx > 0 ? 1 : -1) * Math.sqrt(ball.speed * ball.speed - newDy * newDy);
+                    
+                    ball.dy = newDy;
+                    ball.dx = newDx;
+                    
+                    ball.consecutiveHorizontalSteps = 0; // Reset
+                }
+                // FIM NOVO
+
+
+                // Lógica da Curva (afeta apenas a bola atual)
+                if (isPlayerCurvingBall && ball.dx > 0) {
+                    ball.dy += (ball.y < canvas.height / 2 ? 0.05 * scaleFactor : -0.05 * scaleFactor);
+                    ball.dy = Math.min(Math.abs(ball.dy), ball.speed * 0.8) * Math.sign(ball.dy); 
+                    ball.dx = Math.sqrt(ball.speed * ball.speed - ball.dy * ball.dy) * Math.sign(ball.dx);
+                }
+
+                ball.x += ball.dx;
+                ball.y += ball.dy;
+
+                // Colisão com teto/chão
+                if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+                    
+                    // A correção de Impulso Fantasma já trata dy=0, mas mantemos o básico
+                    if (ball.y + ball.radius > canvas.height) {
+                         ball.y = canvas.height - ball.radius; // Snap para a borda
+                    } else {
+                         ball.y = ball.radius; // Snap para a borda
+                    }
+                    
+                    ball.dy *= -1;
+                }
+
+
+                // Colisão com Bloco de Power-up
+                for (let j = 0; j < powerUpBlocks.length; j++) {
+                    const block = powerUpBlocks[j];
+                    if (checkBlockCollision(ball, block)) {
+                        const hitter = (ball.dx > 0) ? player : computer;
+                        
+                        if (!hitter.currentPowerUp) { hitter.currentPowerUp = block.powerUp; }
+                        
+                        triggerShake(); 
+                        block.powerUp = getRandomPowerUp();
+                        placeBlockRandomly(block); 
+
+                        ball.dy *= -1; 
+                        break; 
+                    }
+                }
+                
+                // Marcação de Ponto e Remoção da Bola
+                let scored = false;
+                if (ball.x + ball.radius > canvas.width) {
+                    player.score++;
+                    scored = true;
+                } else if (ball.x - ball.radius < 0) {
+                    computer.score++;
+                    scored = true;
+                }
+
+                if (scored) {
+                    triggerShake();
+                    balls.splice(i, 1); // Remove a bola que marcou ponto
+
+                    if (balls.length === 0) {
+                         // Se não houver mais bolas em jogo, reinicia uma nova
+                         resetBall(Math.random() > 0.5 ? 1 : -1); 
+                    }
+
+                    if (player.score >= MAX_SCORE || computer.score >= MAX_SCORE) {
+                        gameRunning = false;
+                        showEndGameMessage();
+                        return; 
+                    }
+                    continue; // Pula para a próxima bola no loop
+                }
+
+                // Colisão com as Pás
+                const checkCollision = (paddle, currentBall) => {
+                    const hittedByPlayer = paddle === player;
+                    let hit = false;
+                    
+                    // 1. Verifica Colisão Vertical
+                    const verticalHit = currentBall.y + currentBall.radius >= paddle.y && currentBall.y - currentBall.radius <= paddle.y + paddle.height;
+
+                    if (verticalHit) {
+                        if (hittedByPlayer && currentBall.dx < 0) {
+                            // Player Paddle (Lado esquerdo, movendo-se para a esquerda)
+                            // Colisão se o lado esquerdo da bola tiver cruzado o lado direito da pá
+                            if (currentBall.x - currentBall.radius <= paddle.x + paddle.width) {
+                                hit = true;
+                                // Correção de tunelamento: Snap para o lado de fora da pá
+                                currentBall.x = paddle.x + paddle.width + currentBall.radius; 
+                            }
+                        } else if (!hittedByPlayer && currentBall.dx > 0) {
+                            // CPU Paddle (Lado direito, movendo-se para a direita)
+                            // Colisão se o lado direito da bola tiver cruzado o lado esquerdo da pá
+                            if (currentBall.x + currentBall.radius >= paddle.x) {
+                                hit = true;
+                                // Correção de tunelamento: Snap para o lado de fora da pá
+                                currentBall.x = paddle.x - currentBall.radius;
+                            }
+                        }
+                    }
+
+                    if (hit) {
+                        currentBall.dx *= -1;
+                        triggerShake(); 
+                        currentBall.consecutiveHorizontalSteps = 0; // Reset imediato no hit
+
+                        // Reset de power-ups que só duram um toque
+                        isInvisibleBall.active = false;
+                        isInvisibleBall.hitterSide = null;
+                        isPlayerCurvingBall = false;
+
+                        
+                        if (hittedByPlayer && player.abilityActive && player.currentPowerUp) {
+                            applyPowerUp(player, computer, player.currentPowerUp, currentBall); // Passa a bola atual
+                            player.currentPowerUp = null;
+                            player.abilityActive = false;
+                        } 
+                        else if (!hittedByPlayer && computer.currentPowerUp) {
+                            applyPowerUp(computer, player, computer.currentPowerUp, currentBall); // Passa a bola atual
+                            computer.currentPowerUp = null;
+                        }
+
+                        // Aumenta a velocidade ligeiramente a cada rebatida (efeito clássico do Pong)
+                        currentBall.speed = Math.min(currentBall.speed + 0.5 * scaleFactor, 12 * scaleFactor);
+                        
+                        const collidePoint = currentBall.y - (paddle.y + paddle.height / 2);
+                        const normalizedCollidePoint = collidePoint / (paddle.height / 2);
+                        const angle = normalizedCollidePoint * (Math.PI / 4);
+                        
+                        currentBall.dy = currentBall.speed * Math.sin(angle);
+                        currentBall.dx = (currentBall.dx > 0 ? 1 : -1) * currentBall.speed * Math.cos(angle);
+
+                        // Garante que dy nunca seja 0 após uma rebatida na pá (Mínimo de Segurança)
+                        const MIN_DY_ABS = 0.5 * scaleFactor;
+                        if (Math.abs(currentBall.dy) < MIN_DY_ABS) {
+                            // Injeta um mínimo de velocidade vertical aleatória
+                            const direction = Math.random() > 0.5 ? 1 : -1;
+                            currentBall.dy = direction * MIN_DY_ABS;
+                            // Recalcula dx para manter a velocidade total (currentBall.speed) constante
+                            currentBall.dx = (currentBall.dx > 0 ? 1 : -1) * Math.sqrt(currentBall.speed * currentBall.speed - currentBall.dy * currentBall.dy);
+                        }
+                    }
+                };
+                // Fim da lógica de Colisão com as Pás
+
+                checkCollision(player, ball); 
+                checkCollision(computer, ball);
+            }
+        }
+
+        function resetBall(direction = 1) { 
+            // Cria uma nova bola no centro
+            const ballR = 5 * scaleFactor;
+            const newBall = { 
+                x: canvas.width / 2, 
+                y: canvas.height / 2, 
+                radius: ballR, 
+                dx: 0, 
+                dy: 0,
+                speed: 4 * scaleFactor, // Velocidade padrão para nova bola
+                consecutiveHorizontalSteps: 0 // NOVO: Contador de frames presos
+            };
+            
+            // Define o ângulo inicial
+            const angle = Math.random() * (Math.PI / 2) - (Math.PI / 4);
+            newBall.dx = direction * newBall.speed * Math.cos(angle);
+            newBall.dy = newBall.speed * Math.sin(angle);
+            
+            balls.push(newBall); // Adiciona ao array de bolas
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            updateComputer();
+            updateBall();
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function initGame() {
+            isPaused = false;
+            player.score = 0;
+            computer.score = 0;
+            player.currentPowerUp = null;
+            computer.currentPowerUp = null;
+            player.abilityActive = false;
+            player.height = originalPaddleHeight;
+            computer.height = originalPaddleHeight;
+            
+            // Garante que as cores voltem ao estado inicial no reset: Ciano para P1, Rosa para CPU
+            player.color = P1_INITIAL_COLOR;
+            computer.color = P2_INITIAL_COLOR;
+
+            balls.length = 0; // Limpa todas as bolas
+            resizeCanvas();
+            resetBall(Math.random() > 0.5 ? 1 : -1); // Cria a primeira bola
+            
+            messageBox.style.display = 'none';
+            gameRunning = true;
+            
+            requestPointerLock(); 
+            
+            gameLoop();
+        }
+
+        function showStartMessage() {
+            messageText.innerHTML = "PRONTO PARA JOGAR? O PRIMEIRO A MARCAR 10 PONTOS VENCE.<br>Clique no jogo para prender o mouse e começar!";
+            startButton.textContent = "INICIAR JOGO";
+            messageBox.style.display = 'block';
+        }
+        
+        function showPauseMessage() {
+            messageText.innerHTML = "JOGO PAUSADO.<br>Pressione ESC ou clique em RETOMAR para continuar.";
+            startButton.textContent = "RETOMAR";
+            messageBox.style.display = 'block';
+        }
+
+        function showEndGameMessage() {
+            const winner = player.score >= MAX_SCORE ? "VOCÊ" : "O COMPUTADOR";
+            messageText.innerHTML = `FIM DE JOGO! <br> ${winner} VENCEU.`;
+            startButton.textContent = "JOGAR NOVAMENTE";
+            messageBox.style.display = 'block';
+            exitPointerLock(); 
+        }
+
+        // --- HANDLER UNIVERSAL DE INPUT (TOUCH/MOUSE) ---
+        function handlePaddleInput(event) {
+            if (!gameRunning || isPaused) return;
+
+            // 1. Lógica de ATIVAÇÃO (Clique/Toque rápido)
+            if (event.type === 'mousedown' || event.type === 'touchstart') {
+                
+                // Se o mouse não estiver bloqueado, o clique apenas tenta bloquear (em desktop)
+                if (!isPointerLocked && event.type === 'mousedown') {
+                     requestPointerLock();
+                     return; 
+                }
+                
+                // Ativação de Poder
+                if (player.currentPowerUp && !player.abilityActive) {
+                    player.abilityActive = true;
+                    // Power-ups Instantâneos são ativados imediatamente
+                    if (powerUpDefinitions[player.currentPowerUp].type === 'Instant') {
+                         // Se for INSTANT, precisa de uma bola para aplicar, usa a primeira bola como referência
+                         const ballToAffect = balls[0] || { speed: 4 * scaleFactor, dx: 4 * scaleFactor, dy: 0 }; 
+                         applyPowerUp(player, computer, player.currentPowerUp, ballToAffect);
+                         player.currentPowerUp = null;
+                         player.abilityActive = false;
+                    }
+                }
+                if (event.touches) event.preventDefault();
+                return; 
+            }
+            
+            // 2. Lógica de MOVIMENTO (Mousemove/Touchmove)
+            let handled = false;
+
+            if (isPointerLocked && event.type === 'mousemove') {
+                const movementY = event.movementY || 0;
+                player.y += movementY;
+                handled = true;
+                
+            } else if (event.touches && event.type === 'touchmove') {
+                event.preventDefault(); 
+                const rect = canvas.getBoundingClientRect();
+                const clientY = event.touches[0].clientY;
+                const relativeY = clientY - rect.top;
+                
+                player.y = relativeY - player.height / 2;
+                handled = true;
+            }
+            
+            if (handled) {
+                if (player.y < 0) player.y = 0;
+                if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+            }
+        }
+        
+        // Handler para a tecla ESC (Agora usado apenas para retomar o jogo se já estiver pausado)
+        function handleKeyDown(event) {
+            if (event.key === 'Escape') {
+                // Se o jogo NÃO estava pausado, o navegador já tratou a pausa via lockChangeAlert()
+                if (isPaused) {
+                    // Retoma o jogo
+                    isPaused = false;
+                    messageBox.style.display = 'none';
+                    gameRunning = true;
+                    requestPointerLock(); 
+                    gameLoop();
+                }
+            }
+        }
+
+
+        // Event Listeners
+        window.addEventListener('resize', resizeCanvas);
+        
+        document.addEventListener('mousemove', handlePaddleInput);
+        
+        canvas.addEventListener('mousedown', handlePaddleInput);
+        
+        canvas.addEventListener('touchstart', handlePaddleInput);
+        canvas.addEventListener('touchmove', handlePaddleInput);
+        
+        window.addEventListener('keydown', handleKeyDown);
+
+        startButton.addEventListener('click', function() {
+            if (isPaused) {
+                isPaused = false;
+                messageBox.style.display = 'none';
+                gameRunning = true;
+                requestPointerLock();
+                gameLoop();
+            } else {
+                initGame();
+            }
+        });
+
+        // Inicia o jogo no carregamento da janela
+        window.onload = function() {
+            resizeCanvas();
+            draw();
+            showStartMessage();
+        };
+
+    </script>
+</body>
+</html>
