@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+            <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-15XSHH4V0Q"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    
+      gtag('config', 'G-15XSHH4V0Q');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ne.On(e) Pong Arcade</title>
+    <style>
+        /* Variáveis de Cores Neon */
+        :root {
+            --neon-color: #39FF14; /* Verde Elétrico/Neon (Principal - Linha, Placar, Fundo) */
+            --bg-color: #000000;
+            --arcade-font: 'Monospace', 'Courier New', monospace;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif; /* Tailwind usa Inter, vou manter para compatibilidade visual */
+            background-color: var(--bg-color);
+            color: var(--neon-color);
+            font-family: var(--arcade-font);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden; /* Evita barras de rolagem */
+            text-align: center;
+        }
+
+        h1 {
+            text-shadow: 0 0 10px var(--neon-color), 0 0 20px var(--neon-color);
+            margin-bottom: 10px;
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+        }
+
+        #game-container {
+            border: 4px solid var(--neon-color);
+            box-shadow: 0 0 15px var(--neon-color), 0 0 30px rgba(57, 255, 20, 0.5);
+            margin: 20px 10px;
+            display: inline-block;
+            max-width: 90vw;
+            touch-action: none; /* Previne o arrastar da página em dispositivos móveis */
+            /* Efeito de impacto (shake) */
+            transition: transform 0.05s ease-out; 
+        }
+        
+        /* Classe para ativar o efeito de tremer (shake) */
+        #game-container.shake {
+            animation: shake 0.1s linear;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-4px, 0); }
+            75% { transform: translate(4px, 0); }
+        }
+
+
+        #pongCanvas {
+            display: block;
+            background-color: rgba(0, 0, 0, 0.8);
+            /* Definido no JS para responsividade */
+        }
+
+        .info-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 0;
+            font-size: clamp(0.8rem, 2vw, 1rem);
+            text-shadow: 0 0 5px var(--neon-color);
+        }
+        
+        /* NOVO ESTILO PARA O RODAPÉ */
+        .footer-note {
+            margin-top: 20px;
+            font-size: clamp(0.7rem, 2vw, 0.9rem);
+            opacity: 0.7;
+            text-shadow: 0 0 5px rgba(57, 255, 20, 0.5);
+        }
+        
+        /* Estilo para garantir que o link no rodapé fique neon */
+        .footer-note a {
+            color: inherit; /* Garante que o texto fique com a cor neon do pai */
+            text-decoration: none; /* Remove a sublinhado padrão */
+            border-bottom: 1px dashed var(--neon-color); /* Adiciona um sublinhado tracejado neon */
+            transition: opacity 0.2s;
+        }
+
+        .footer-note a:hover {
+            opacity: 1;
+        }
+
+
+        /* Estilo para Mensagens de Jogo (Game Over/Instruções) */
+        #messageBox {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.95);
+            padding: 20px 40px;
+            border: 3px solid var(--neon-color);
+            box-shadow: 0 0 20px var(--neon-color);
+            z-index: 100;
+            display: none; /* Inicialmente oculto */
+            max-width: 80vw;
+            border-radius: 8px;
+        }
+
+        #messageText {
+            font-size: clamp(1.2rem, 4vw, 2rem);
+            margin-bottom: 15px;
+            text-shadow: 0 0 8px var(--neon-color);
+        }
+
+        /* Estilos dos Botões de Dificuldade */
+        #modeSelector {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        #modeSelector button, #startButton {
+            background-color: var(--neon-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 10px 20px;
+            font-family: var(--arcade-font);
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            box-shadow: 0 0 5px var(--neon-color);
+        }
+        
+        #modeSelector button.selected {
+            background-color: transparent;
+            color: var(--neon-color);
+            border: 2px solid var(--neon-color);
+        }
+
+        #modeSelector button:not(.selected):hover, #startButton:hover {
+            box-shadow: 0 0 10px var(--neon-color), 0 0 20px var(--neon-color);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="messageBox">
+        <div id="messageText"></div>
+        <div id="modeSelector">
+            <button id="easyButton" data-mode="Easy">FÁCIL</button>
+            <button id="hardButton" data-mode="Hard">DIFÍCIL</button>
+        </div>
+        <button id="startButton">INICIAR JOGO</button>
+    </div>
+
+    <h1>NE.ON(E) PONG ARCADE</h1>
+    <p class="info-box">Controle: Clique/Toque para ativar o poder ou mover. Pressione ESC para Pausar. <span style="color:red; font-weight:bold;">BUG ALERTA:</span> Campo de Força Secreto ativado em movimentos horizontais e verticais!</p> 
+    
+    <div id="game-container">
+        <canvas id="pongCanvas"></canvas>
+    </div>
+    
+    <!-- NOTA DE RODAPÉ ADICIONADA -->
+    <footer class="footer-note">
+        Desenvolvido por <a href="https://padula.one" target="_blank">Padula.One</a> usando Gemini
+    </footer>
+
+    <script>
+        // Configurações Globais
+        const CANVAS_WIDTH = 600; // Largura base
+        const CANVAS_HEIGHT = 400; // Altura base
+        const NEON_COLOR = '#39FF14';      // Cor Neon Principal (Verde - Linha, Placar, Fundo)
+        const P1_INITIAL_COLOR = '#00FFFF';  // Ciano Neon (Barra P1)
+        const P2_INITIAL_COLOR = '#FF1493';  // Rosa Neon (Barra CPU)
+        const MAX_SCORE = 10;
+        const PADDLE_WIDTH_RATIO = 0.015;
+        const PADDLE_HEIGHT_RATIO = 0.15;
+        const CPU_BASE_SPEED = 4.0; // Velocidade base do CPU (multiplicada pelo fator de escala e pelo multiplicador da bola)
+        
+        // --- VARIÁVEIS DE DIFICULDADE (AJUSTADAS CONFORME PEDIDO) ---
+        
+        // Original Hard: 1.0
+        const CPU_HARD_MULTIPLIER = 1.0; 
+        // Novo Easy: 0.5 (50% do caminho para o hard)
+        const CPU_EASY_MULTIPLIER = 0.5;    
+        
+        // Original Hard: 0.15 (15% chance de lag)
+        const CPU_HARD_LAG_CHANCE = 0.15;    
+        // Novo Easy: 0.25 (50% do caminho para o hard)
+        const CPU_EASY_LAG_CHANCE = 0.25;    
+        
+        // Original Hard: 15 (pixels de zona morta)
+        const CPU_HARD_LAG_ZONE = 15;        
+        // Novo Easy: 22.5 (50% do caminho para o hard)
+        const CPU_EASY_LAG_ZONE = 22.5;      
+        // ------------------------------------
+
+        // Parâmetros de Correção de Bug/Feature (Impulso Fantasma)
+        // 1. Correção para loops NEAR-HORIZONTAL (bola viajando reto)
+        const HORIZONTAL_STEP_THRESHOLD = 3; 
+        const MIN_DY_TO_CHECK = 0.2; // Se |dy| < 0.2, é considerado "horizontal"
+        const FORCED_IMPULSE_FORCE_Y = 4.0; 
+
+        // 2. Correção para loops NEAR-VERTICAL (bola presa em 90 graus) <-- NOVO
+        const VERTICAL_STEP_THRESHOLD = 30; // 30 frames
+        const MIN_DX_TO_CHECK = 0.5; // Se |dx| < 0.5, é considerado "vertical"
+        const FORCED_IMPULSE_FORCE_X = 2.0; // Força horizontal injetada
+
+        // Ângulo mínimo de lançamento da bola para evitar travamentos horizontais (5 graus)
+        const MIN_INITIAL_ANGLE_RAD = Math.PI / 36; 
+
+        let gameMode = 'Hard'; // Dificuldade inicial
+
+        // Definições dos Power-ups
+        const powerUpDefinitions = {
+            'SWAP': { name: 'Troca', effect: 'Troca a barra com CPU.', type: 'Instant' },
+            'INVIS': { name: 'Invisível', effect: 'Bola opaca, CPU tem 15% de erro.', type: 'Ball' },
+            'CURVE': { name: 'Curva', effect: 'Bola Curva na devolução.', type: 'Ball' },
+            'SHRINK_OPP': { name: 'Encolher CPU', effect: 'Encolhe a barra do CPU pela metade.', type: 'Paddle' },
+            'BOOST': { name: 'Velocidade x2', effect: 'A bola dobra a velocidade.', type: 'Ball' },
+            'GROW': { name: 'Inchaço x2', effect: 'Sua barra aumenta 2x (5s).', type: 'Paddle' },
+            'DUPLICATE': { name: 'Duplicar', effect: 'Cria uma segunda bola.', type: 'Instant' }, 
+        };
+        const NUM_BLOCKS = 3;
+        const BLOCK_WIDTH_RATIO = 0.03;
+        const BLOCK_HEIGHT_RATIO = 0.05;
+        const POWER_UP_DURATION_MS = 5000;
+        
+        // Elementos DOM
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const startButton = document.getElementById('startButton');
+        const gameContainer = document.getElementById('game-container');
+        const modeSelector = document.getElementById('modeSelector');
+        const easyButton = document.getElementById('easyButton');
+        const hardButton = document.getElementById('hardButton');
+
+        // Variáveis de Jogo
+        let gameRunning = false;
+        let isPaused = false; 
+        let isPointerLocked = false; 
+        let scaleFactor = 1;
+
+        // Objetos do Jogo
+        let player, computer;
+        let balls = []; 
+        let powerUpBlocks = [];
+        let originalPaddleHeight; 
+        let isInvisibleBall = { active: false, hitterSide: null }; 
+        let isPlayerCurvingBall = false;
+        
+        // --- FUNÇÕES DE CONTROLE DE MOUSE LOCK ---
+        
+        function requestPointerLock() {
+            canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+            
+            const lockPromise = canvas.requestPointerLock();
+            
+            if (lockPromise && typeof lockPromise.catch === 'function') {
+                 // Silencia o SecurityError se o usuário cancelar o lock rapidamente
+                 lockPromise.catch(() => {}); 
+            }
+        }
+
+        function exitPointerLock() {
+            if (isPointerLocked) {
+                document.exitPointerLock = document.exitPointerLock || document.mozExitPointerLock;
+                document.exitPointerLock();
+            }
+        }
+        
+        function lockChangeAlert() {
+            isPointerLocked = document.pointerLockElement === canvas || document.mozPointerLockElement === canvas;
+
+            // Se o mouse foi liberado (isPointerLocked é false) pelo navegador (usuário apertou ESC) 
+            // E o jogo está rodando (não está pausado intencionalmente), forçamos a pausa.
+            if (!isPointerLocked && gameRunning && !isPaused) {
+                isPaused = true;
+                gameRunning = false;
+                showPauseMessage();
+            }
+        }
+        
+        // Listener para o estado de mouse lock
+        document.addEventListener('pointerlockchange', lockChangeAlert, false);
+        document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
+        
+        // --- FIM FUNÇÕES DE CONTROLE DE MOUSE LOCK ---
+
+        function triggerShake() {
+            gameContainer.classList.add('shake');
+            setTimeout(() => {
+                gameContainer.classList.remove('shake');
+            }, 100); 
+        }
+
+        function resizeCanvas() {
+            const newWidth = Math.min(CANVAS_WIDTH, window.innerWidth * 0.9);
+            const newHeight = newWidth * (CANVAS_HEIGHT / CANVAS_WIDTH);
+
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            scaleFactor = newWidth / CANVAS_WIDTH;
+
+            const paddleW = CANVAS_WIDTH * PADDLE_WIDTH_RATIO * scaleFactor;
+            const paddleH = CANVAS_HEIGHT * PADDLE_HEIGHT_RATIO * scaleFactor;
+            const ballR = 5 * scaleFactor;
+            const blockW = CANVAS_WIDTH * BLOCK_WIDTH_RATIO * scaleFactor;
+            const blockH = CANVAS_HEIGHT * BLOCK_HEIGHT_RATIO * scaleFactor;
+
+            if (!player) {
+                originalPaddleHeight = paddleH;
+                player = { x: 10 * scaleFactor, y: (canvas.height / 2) - (paddleH / 2), width: paddleW, height: paddleH, score: 0, currentPowerUp: null, abilityActive: false, color: P1_INITIAL_COLOR };
+            } else {
+                player.width = paddleW;
+                player.x = 10 * scaleFactor;
+                originalPaddleHeight = paddleH;
+                player.color = player.color || P1_INITIAL_COLOR; 
+            }
+
+            if (!computer) {
+                computer = { x: canvas.width - paddleW - (10 * scaleFactor), y: (canvas.height / 2) - (paddleH / 2), width: paddleW, height: paddleH, score: 0, speed: CPU_BASE_SPEED * scaleFactor, currentPowerUp: null, color: P2_INITIAL_COLOR };
+            } else {
+                computer.width = paddleW;
+                computer.x = canvas.width - paddleW - (10 * scaleFactor);
+                computer.speed = CPU_BASE_SPEED * scaleFactor;
+                computer.color = computer.color || P2_INITIAL_COLOR;
+            }
+
+            if (balls.length > 0) {
+                balls.forEach(b => b.radius = ballR);
+            }
+
+            if (powerUpBlocks.length === 0) {
+                for (let i = 0; i < NUM_BLOCKS; i++) {
+                    powerUpBlocks.push({ x: 0, y: 0, width: blockW, height: blockH, id: i, powerUp: getRandomPowerUp() });
+                }
+                powerUpBlocks.forEach(block => placeBlockRandomly(block));
+            } else {
+                powerUpBlocks.forEach(block => {
+                    block.width = blockW;
+                    block.height = blockH;
+                });
+            }
+        }
+        
+        function getRandomPowerUp() {
+            const powerUpKeys = Object.keys(powerUpDefinitions);
+            const randomIndex = Math.floor(Math.random() * powerUpKeys.length);
+            return powerUpKeys[randomIndex]; 
+        }
+
+        function placeBlockRandomly(block) {
+            const centerAreaWidth = canvas.width / 2;
+            const centerAreaStartX = canvas.width / 4;
+            
+            block.x = centerAreaStartX + Math.random() * (centerAreaWidth - block.width);
+            block.y = block.height + Math.random() * (canvas.height - 2 * block.height);
+        }
+
+        function checkBlockCollision(ball, block) {
+            return ball.x + ball.radius > block.x &&
+                   ball.x - ball.radius < block.x + block.width &&
+                   ball.y + ball.radius > block.y &&
+                   ball.y - ball.radius < block.y + block.height;
+        }
+
+        function draw() {
+            // 1. Fundo
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Linha Divisória e Efeitos Neon para Pás e Blocos
+            ctx.beginPath();
+            ctx.setLineDash([10 * scaleFactor, 10 * scaleFactor]);
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.strokeStyle = NEON_COLOR;
+            ctx.lineWidth = 2 * scaleFactor;
+            ctx.shadowColor = NEON_COLOR;
+            ctx.shadowBlur = 5 * scaleFactor;
+            ctx.stroke();
+            ctx.closePath();
+            ctx.setLineDash([]); 
+
+            // 3. Pás e Blocos
+            [player, computer].forEach(p => {
+                ctx.fillStyle = p.color; 
+                ctx.shadowColor = p.color; 
+                ctx.shadowBlur = 10 * scaleFactor;
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+            });
+            
+            powerUpBlocks.forEach(block => {
+                ctx.fillStyle = NEON_COLOR; 
+                ctx.shadowColor = NEON_COLOR;
+                ctx.shadowBlur = 10 * scaleFactor;
+                ctx.fillRect(block.x, block.y, block.width, block.height);
+
+                const powerDef = powerUpDefinitions[block.powerUp];
+                if (powerDef) {
+                    ctx.fillStyle = 'black';
+                    ctx.textAlign = 'center';
+                    ctx.font = `${10 * scaleFactor}px ${canvas.style.fontFamily}`;
+                    ctx.fillText(powerDef.name[0], block.x + block.width / 2, block.y + block.height * 0.7);
+                }
+            });
+
+            ctx.shadowBlur = 0; 
+            
+            // 4. Desenha as bolas
+            balls.forEach(ball => {
+                // Lógica de opacidade da Bola Invisível
+                let ballAlpha = 1;
+                if (isInvisibleBall.active) {
+                    const totalWidth = canvas.width;
+                    const fadeStartThreshold = totalWidth * 0.25;
+                    const fadeEndThreshold = totalWidth * 0.75;
+                    const maxInvisibility = 0; 
+    
+                    let distanceD = 0;
+                    if (isInvisibleBall.hitterSide === 'player') { 
+                        distanceD = ball.x; 
+                    } 
+                    else if (isInvisibleBall.hitterSide === 'computer') { 
+                        distanceD = totalWidth - ball.x; 
+                    }
+    
+                    if (distanceD < fadeStartThreshold) {
+                        const range = fadeStartThreshold;
+                        const normalizedPosition = distanceD / range; 
+                        ballAlpha = 1 - normalizedPosition * (1 - maxInvisibility); 
+                    } else if (distanceD >= fadeStartThreshold && distanceD <= fadeEndThreshold) {
+                        ballAlpha = maxInvisibility;
+                    } else {
+                        const range = totalWidth - fadeEndThreshold;
+                        const normalizedPosition = (distanceD - fadeEndThreshold) / range; 
+                        ballAlpha = maxInvisibility + normalizedPosition * (1 - maxInvisibility); 
+                    }
+                    ballAlpha = Math.max(0, Math.min(1, ballAlpha));
+                }
+                ctx.globalAlpha = ballAlpha; 
+    
+                // Desenha
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = NEON_COLOR; 
+                ctx.shadowColor = NEON_COLOR;
+                ctx.shadowBlur = ballAlpha > 0 ? 15 * scaleFactor : 0; 
+                ctx.fill();
+                ctx.closePath();
+            });
+            ctx.globalAlpha = 1; // Reseta opacidade global após desenhar as bolas
+
+            ctx.shadowBlur = 0;
+
+            // 5. Placar e Status
+            ctx.fillStyle = NEON_COLOR; 
+            ctx.font = `${30 * scaleFactor}px ${canvas.style.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(player.score, canvas.width / 4, 30 * scaleFactor);
+            ctx.fillText(computer.score, canvas.width * 3 / 4, 30 * scaleFactor);
+
+            ctx.font = `${10 * scaleFactor}px ${canvas.style.fontFamily}`;
+            
+            ctx.textAlign = 'left';
+            if (player.currentPowerUp) {
+                const powerName = powerUpDefinitions[player.currentPowerUp].name;
+                const statusText = `Poder (P1): ${powerName} ${player.abilityActive && powerUpDefinitions[player.currentPowerUp].type !== 'Instant' ? '(ATIVO)' : '(PRONTO)'}`;
+                ctx.fillText(statusText, 10 * scaleFactor, canvas.height - 10 * scaleFactor);
+            }
+
+            ctx.textAlign = 'right';
+            if (computer.currentPowerUp) {
+                const powerName = powerUpDefinitions[computer.currentPowerUp].name;
+                const statusText = `Poder (CPU): ${powerName} (PRONTO)`;
+                ctx.fillText(statusText, canvas.width - 10 * scaleFactor, canvas.height - 10 * scaleFactor);
+            }
+        }
+
+        function applyPowerUp(user, opponent, powerUpId, currentBall) {
+            const powerDef = powerUpDefinitions[powerUpId];
+            if (!powerDef) return;
+
+            player.height = originalPaddleHeight;
+            computer.height = originalPaddleHeight;
+            
+            switch (powerUpId) {
+                case 'SWAP': 
+                    [user.y, opponent.y] = [opponent.y, user.y]; 
+                    [user.color, opponent.color] = [opponent.color, user.color]; 
+                    break;
+                case 'INVIS':
+                    isInvisibleBall.active = true;
+                    isInvisibleBall.hitterSide = (user === player) ? 'player' : 'computer'; 
+                    break;
+                case 'CURVE': 
+                    isPlayerCurvingBall = true; 
+                    break;
+                case 'SHRINK_OPP':
+                    opponent.height = originalPaddleHeight * 0.5;
+                    setTimeout(() => { opponent.height = originalPaddleHeight; }, POWER_UP_DURATION_MS);
+                    break;
+                case 'BOOST':
+                    currentBall.speed = Math.min(currentBall.speed * 2, 12 * scaleFactor); 
+                    break;
+                case 'GROW':
+                    user.height = originalPaddleHeight * 2;
+                    setTimeout(() => { user.height = originalPaddleHeight; }, POWER_UP_DURATION_MS);
+                    break;
+                case 'DUPLICATE':
+                    if (balls.length < 5) { 
+                        const newBall = {
+                            ...currentBall, 
+                            x: currentBall.x,
+                            y: currentBall.y,
+                            speed: currentBall.speed * 0.9, 
+                            dx: -currentBall.dx, 
+                            dy: -currentBall.dy, 
+                            consecutiveVerticalSteps: 0 // Novo contador para a nova bola
+                        };
+                        balls.push(newBall);
+                    }
+                    break;
+            }
+            
+            const angle = Math.atan2(currentBall.dy, currentBall.dx);
+            currentBall.dx = currentBall.speed * Math.cos(angle);
+            currentBall.dy = currentBall.speed * Math.sin(angle);
+        }
+
+        function updateComputer() {
+            let targetBall = null;
+            let minDistance = Infinity;
+            let maxBallSpeed = 0; 
+
+            balls.forEach(ball => {
+                maxBallSpeed = Math.max(maxBallSpeed, ball.speed);
+
+                const distance = Math.abs(ball.x - computer.x);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    targetBall = ball;
+                }
+            });
+
+            if (!targetBall) return;
+            
+            // --- Lógica de Dificuldade ---
+            let modeMultiplier, errorChance, maxLagZone;
+
+            if (gameMode === 'Easy') {
+                // Configurações 50% mais difíceis
+                modeMultiplier = CPU_EASY_MULTIPLIER;    // 0.5
+                errorChance = CPU_EASY_LAG_CHANCE;      // 0.25
+                maxLagZone = CPU_EASY_LAG_ZONE * scaleFactor; // 22.5 * scaleFactor
+            } else { // Hard
+                modeMultiplier = CPU_HARD_MULTIPLIER;    // 1.0
+                errorChance = CPU_HARD_LAG_CHANCE;       // 0.15
+                maxLagZone = CPU_HARD_LAG_ZONE * scaleFactor; // 15 * scaleFactor
+            }
+
+            const initialBallSpeed = 4 * scaleFactor;
+            const speedMultiplier = maxBallSpeed / initialBallSpeed;
+
+            // Velocidade base ajustada pelo modo e velocidade da bola
+            let currentSpeed = CPU_BASE_SPEED * scaleFactor * speedMultiplier * modeMultiplier; 
+            
+            // Chance de erro ou lag (reduz a velocidade de movimento)
+            if (isInvisibleBall.active || Math.random() < errorChance) {
+                currentSpeed *= 0.5; 
+            }
+            // --- Fim da Lógica de Dificuldade ---
+
+            const centerPaddle = computer.y + computer.height / 2;
+
+            if (targetBall.dx > 0) {
+                // Se a bola estiver fora da "Zona Morta" (maxLagZone), a CPU se move
+                if (centerPaddle < targetBall.y - maxLagZone) { computer.y += currentSpeed; } 
+                else if (centerPaddle > targetBall.y + maxLagZone) { computer.y -= currentSpeed; }
+            }
+
+            if (computer.y < 0) computer.y = 0;
+            if (computer.y + computer.height > canvas.height) computer.y = canvas.height - computer.height;
+        }
+
+        function updateBall() {
+            for (let i = balls.length - 1; i >= 0; i--) {
+                const ball = balls[i];
+
+                // --- Lógica de Correção de Loop (Impulso Fantasma) ---
+                
+                // 1. CORREÇÃO NEAR-HORIZONTAL (para evitar a bola "viajar" reto)
+                if (Math.abs(ball.dy) < MIN_DY_TO_CHECK * scaleFactor) {
+                    ball.consecutiveHorizontalSteps++;
+                } else {
+                    ball.consecutiveHorizontalSteps = 0;
+                }
+
+                if (ball.consecutiveHorizontalSteps >= HORIZONTAL_STEP_THRESHOLD) {
+                    console.warn(`Impulso Fantasma Ativado (Horizontal Loop): Quebrando loop quase horizontal!`);
+                    triggerShake();
+                    
+                    const direction = Math.random() > 0.5 ? 1 : -1;
+                    const newDy = direction * FORCED_IMPULSE_FORCE_Y * scaleFactor;
+                    
+                    const newDx = (ball.dx > 0 ? 1 : -1) * Math.sqrt(ball.speed * ball.speed - newDy * newDy);
+                    
+                    ball.dy = newDy;
+                    ball.dx = newDx;
+                    
+                    ball.consecutiveHorizontalSteps = 0; 
+                }
+                
+                // 2. CORREÇÃO NEAR-VERTICAL (para evitar a bola ficar presa em 90 graus) <-- NOVO
+                if (Math.abs(ball.dx) < MIN_DX_TO_CHECK * scaleFactor) {
+                    ball.consecutiveVerticalSteps++;
+                } else {
+                    ball.consecutiveVerticalSteps = 0;
+                }
+
+                if (ball.consecutiveVerticalSteps >= VERTICAL_STEP_THRESHOLD) {
+                    console.warn(`Impulso Fantasma Ativado (Vertical Loop): Quebrando loop vertical!`);
+                    triggerShake();
+                    
+                    // Força a injeção de uma velocidade X mínima
+                    const direction = ball.x < canvas.width / 2 ? 1 : -1; // Tenta forçar para o lado oposto ao centro
+                    const newDx = direction * FORCED_IMPULSE_FORCE_X * scaleFactor;
+                    
+                    // Recalcula DY para manter a velocidade (speed) total
+                    const newDy = (ball.dy > 0 ? 1 : -1) * Math.sqrt(ball.speed * ball.speed - newDx * newDx);
+                    
+                    ball.dx = newDx;
+                    ball.dy = newDy;
+                    
+                    ball.consecutiveVerticalSteps = 0; 
+                }
+                // --- FIM Lógica de Correção de Loop ---
+
+
+                // Lógica da Curva 
+                if (isPlayerCurvingBall && ball.dx > 0) {
+                    ball.dy += (ball.y < canvas.height / 2 ? 0.05 * scaleFactor : -0.05 * scaleFactor);
+                    ball.dy = Math.min(Math.abs(ball.dy), ball.speed * 0.8) * Math.sign(ball.dy); 
+                    ball.dx = Math.sqrt(ball.speed * ball.speed - ball.dy * ball.dy) * Math.sign(ball.dx);
+                }
+
+                ball.x += ball.dx;
+                ball.y += ball.dy;
+
+                // Colisão com teto/chão
+                if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+                    if (ball.y + ball.radius > canvas.height) {
+                         ball.y = canvas.height - ball.radius; 
+                    } else {
+                         ball.y = ball.radius; 
+                    }
+                    
+                    ball.dy *= -1;
+                }
+
+
+                // Colisão com Bloco de Power-up
+                for (let j = 0; j < powerUpBlocks.length; j++) {
+                    const block = powerUpBlocks[j];
+                    if (checkBlockCollision(ball, block)) {
+                        const hitter = (ball.dx > 0) ? player : computer;
+                        
+                        if (!hitter.currentPowerUp) { hitter.currentPowerUp = block.powerUp; }
+                        
+                        triggerShake(); 
+                        block.powerUp = getRandomPowerUp();
+                        placeBlockRandomly(block); 
+
+                        ball.dy *= -1; 
+                        break; 
+                    }
+                }
+                
+                // Marcação de Ponto e Remoção da Bola
+                let scored = false;
+                if (ball.x + ball.radius > canvas.width) {
+                    player.score++;
+                    scored = true;
+                } else if (ball.x - ball.radius < 0) {
+                    computer.score++;
+                    scored = true;
+                }
+
+                if (scored) {
+                    triggerShake();
+                    balls.splice(i, 1); 
+
+                    if (balls.length === 0) {
+                         resetBall(Math.random() > 0.5 ? 1 : -1); 
+                    }
+
+                    if (player.score >= MAX_SCORE || computer.score >= MAX_SCORE) {
+                        gameRunning = false;
+                        showEndGameMessage();
+                        return; 
+                    }
+                    continue; 
+                }
+
+                // Colisão com as Pás
+                const checkCollision = (paddle, currentBall) => {
+                    const hittedByPlayer = paddle === player;
+                    let hit = false;
+                    
+                    const verticalHit = currentBall.y + currentBall.radius >= paddle.y && currentBall.y - currentBall.radius <= paddle.y + paddle.height;
+
+                    if (verticalHit) {
+                        if (hittedByPlayer && currentBall.dx < 0) {
+                            if (currentBall.x - currentBall.radius <= paddle.x + paddle.width) {
+                                hit = true;
+                                currentBall.x = paddle.x + paddle.width + currentBall.radius; 
+                            }
+                        } else if (!hittedByPlayer && currentBall.dx > 0) {
+                            if (currentBall.x + currentBall.radius >= paddle.x) {
+                                hit = true;
+                                currentBall.x = paddle.x - currentBall.radius;
+                            }
+                        }
+                    }
+
+                    if (hit) {
+                        currentBall.dx *= -1;
+                        triggerShake(); 
+                        
+                        // Reseta contadores de loop após uma rebatida bem-sucedida
+                        currentBall.consecutiveHorizontalSteps = 0; 
+                        currentBall.consecutiveVerticalSteps = 0; 
+
+                        isInvisibleBall.active = false;
+                        isInvisibleBall.hitterSide = null;
+                        isPlayerCurvingBall = false;
+
+                        
+                        if (hittedByPlayer && player.abilityActive && player.currentPowerUp) {
+                            applyPowerUp(player, computer, player.currentPowerUp, currentBall); 
+                            player.currentPowerUp = null;
+                            player.abilityActive = false;
+                        } 
+                        else if (!hittedByPlayer && computer.currentPowerUp) {
+                            applyPowerUp(computer, player, computer.currentPowerUp, currentBall); 
+                            computer.currentPowerUp = null;
+                        }
+
+                        currentBall.speed = Math.min(currentBall.speed + 0.5 * scaleFactor, 12 * scaleFactor);
+                        
+                        const collidePoint = currentBall.y - (paddle.y + paddle.height / 2);
+                        const normalizedCollidePoint = collidePoint / (paddle.height / 2);
+                        const angle = normalizedCollidePoint * (Math.PI / 4);
+                        
+                        currentBall.dy = currentBall.speed * Math.sin(angle);
+                        currentBall.dx = (currentBall.dx > 0 ? 1 : -1) * currentBall.speed * Math.cos(angle);
+
+                        // Garante que dy nunca seja 0 após uma rebatida na pá 
+                        const MIN_DY_ABS = 0.5 * scaleFactor;
+                        if (Math.abs(currentBall.dy) < MIN_DY_ABS) {
+                            const direction = Math.random() > 0.5 ? 1 : -1;
+                            currentBall.dy = direction * MIN_DY_ABS;
+                            currentBall.dx = (currentBall.dx > 0 ? 1 : -1) * Math.sqrt(currentBall.speed * currentBall.speed - currentBall.dy * currentBall.dy);
+                        }
+                    }
+                };
+
+                checkCollision(player, ball); 
+                checkCollision(computer, ball);
+            }
+        }
+
+        function resetBall(direction = 1) { 
+            const ballR = 5 * scaleFactor;
+            const newBall = { 
+                x: canvas.width / 2, 
+                y: canvas.height / 2, 
+                radius: ballR, 
+                dx: 0, 
+                dy: 0,
+                speed: 4 * scaleFactor, 
+                consecutiveHorizontalSteps: 0,
+                consecutiveVerticalSteps: 0 // <-- Adicionado novo contador
+            };
+            
+            // Ângulo máximo: PI/4 (45 graus), Ângulo mínimo absoluto: MIN_INITIAL_ANGLE_RAD (5 graus)
+            const MAX_ANGLE = Math.PI / 4;
+            
+            let angle;
+            
+            // Escolhe se o ângulo será positivo (para baixo) ou negativo (para cima)
+            if (Math.random() < 0.5) {
+                // Ângulo negativo (para cima), entre -MAX_ANGLE e -MIN_INITIAL_ANGLE_RAD
+                angle = -(MIN_INITIAL_ANGLE_RAD + Math.random() * (MAX_ANGLE - MIN_INITIAL_ANGLE_RAD));
+            } else {
+                // Ângulo positivo (para baixo), entre MIN_INITIAL_ANGLE_RAD e MAX_ANGLE
+                angle = MIN_INITIAL_ANGLE_RAD + Math.random() * (MAX_ANGLE - MIN_INITIAL_ANGLE_RAD);
+            }
+
+            newBall.dx = direction * newBall.speed * Math.cos(angle);
+            newBall.dy = newBall.speed * Math.sin(angle);
+            
+            balls.push(newBall); 
+        }
+        
+        // --- FUNÇÃO DE MUDANÇA DE MODO ---
+        function setGameMode(mode) {
+            gameMode = mode;
+            easyButton.classList.remove('selected');
+            hardButton.classList.remove('selected');
+            document.querySelector(`[data-mode="${mode}"]`).classList.add('selected');
+            startButton.textContent = `INICIAR JOGO (${mode.toUpperCase()})`;
+        }
+        // ------------------------------------
+
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            updateComputer();
+            updateBall();
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function initGame() {
+            isPaused = false;
+            player.score = 0;
+            computer.score = 0;
+            player.currentPowerUp = null;
+            computer.currentPowerUp = null;
+            player.abilityActive = false;
+            player.height = originalPaddleHeight;
+            computer.height = originalPaddleHeight;
+            
+            player.color = P1_INITIAL_COLOR;
+            computer.color = P2_INITIAL_COLOR;
+
+            balls.length = 0; 
+            resizeCanvas();
+            resetBall(Math.random() > 0.5 ? 1 : -1); 
+            
+            messageBox.style.display = 'none';
+            modeSelector.style.display = 'none'; // Esconde seletor
+            gameRunning = true;
+            
+            requestPointerLock(); 
+            
+            gameLoop();
+        }
+
+        function showStartMessage() {
+            messageText.innerHTML = "SELECIONE A DIFICULDADE. O PRIMEIRO A MARCAR 10 PONTOS VENCE.";
+            modeSelector.style.display = 'flex'; // Mostra seletor
+            setGameMode(gameMode); // Garante que o botão correto esteja selecionado
+            messageBox.style.display = 'block';
+        }
+        
+        function showPauseMessage() {
+            messageText.innerHTML = "JOGO PAUSADO.<br>Pressione ESC ou clique em RETOMAR para continuar.";
+            startButton.textContent = "RETOMAR";
+            modeSelector.style.display = 'none';
+            messageBox.style.display = 'block';
+        }
+
+        function showEndGameMessage() {
+            const winner = player.score >= MAX_SCORE ? "VOCÊ" : "O COMPUTADOR";
+            messageText.innerHTML = `FIM DE JOGO! (Modo ${gameMode.toUpperCase()}) <br> ${winner} VENCEU.`;
+            startButton.textContent = "JOGAR NOVAMENTE";
+            modeSelector.style.display = 'flex'; // Volta a mostrar o seletor
+            messageBox.style.display = 'block';
+            exitPointerLock(); 
+        }
+
+        // --- HANDLER UNIVERSAL DE INPUT (TOUCH/MOUSE) ---
+        function handlePaddleInput(event) {
+            if (!gameRunning || isPaused) return;
+
+            if (event.type === 'mousedown' || event.type === 'touchstart') {
+                
+                if (!isPointerLocked && event.type === 'mousedown') {
+                     requestPointerLock();
+                     return; 
+                }
+                
+                if (player.currentPowerUp && !player.abilityActive) {
+                    player.abilityActive = true;
+                    if (powerUpDefinitions[player.currentPowerUp].type === 'Instant') {
+                         // Garante que há uma bola para afetar, ou cria uma representação de bola para o cálculo de poderes.
+                         const ballToAffect = balls[0] || { speed: 4 * scaleFactor, dx: 4 * scaleFactor, dy: 0 }; 
+                         applyPowerUp(player, computer, player.currentPowerUp, ballToAffect);
+                         player.currentPowerUp = null;
+                         player.abilityActive = false;
+                    }
+                }
+                if (event.touches) event.preventDefault();
+                return; 
+            }
+            
+            let handled = false;
+
+            if (isPointerLocked && event.type === 'mousemove') {
+                const movementY = event.movementY || 0;
+                player.y += movementY;
+                handled = true;
+                
+            } else if (event.touches && event.type === 'touchmove') {
+                event.preventDefault(); 
+                const rect = canvas.getBoundingClientRect();
+                const clientY = event.touches[0].clientY;
+                const relativeY = clientY - rect.top;
+                
+                player.y = relativeY - player.height / 2;
+                handled = true;
+            }
+            
+            if (handled) {
+                if (player.y < 0) player.y = 0;
+                if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+            }
+        }
+        
+        function handleKeyDown(event) {
+            if (event.key === 'Escape') {
+                if (isPaused) {
+                    isPaused = false;
+                    messageBox.style.display = 'none';
+                    gameRunning = true;
+                    requestPointerLock(); 
+                    gameLoop();
+                } else if (gameRunning) {
+                    isPaused = true;
+                    gameRunning = false;
+                    showPauseMessage();
+                    exitPointerLock();
+                }
+            }
+        }
+
+        // Event Listeners
+        window.addEventListener('resize', resizeCanvas);
+        
+        document.addEventListener('mousemove', handlePaddleInput);
+        canvas.addEventListener('mousedown', handlePaddleInput);
+        canvas.addEventListener('touchstart', handlePaddleInput);
+        canvas.addEventListener('touchmove', handlePaddleInput);
+        window.addEventListener('keydown', handleKeyDown);
+        
+        // --- LISTENERS DE MODO ---
+        easyButton.addEventListener('click', () => setGameMode('Easy'));
+        hardButton.addEventListener('click', () => setGameMode('Hard'));
+        // ------------------------------
+
+        startButton.addEventListener('click', function() {
+            if (isPaused) {
+                isPaused = false;
+                messageBox.style.display = 'none';
+                gameRunning = true;
+                requestPointerLock();
+                gameLoop();
+            } else {
+                initGame();
+            }
+        });
+
+        // Inicia o jogo no carregamento da janela
+        window.onload = function() {
+            resizeCanvas();
+            draw();
+            showStartMessage();
+        };
+
+    </script>
+</body>
+</html>
